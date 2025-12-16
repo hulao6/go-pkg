@@ -507,6 +507,7 @@ func (b *BeegoHTTPRequest) DoRequest() (resp *http.Response, err error) {
 	client := &http.Client{
 		Transport: trans,
 		Jar:       jar,
+		Timeout:   b.setting.Timeout,
 	}
 
 	if b.setting.UserAgent != "" && b.req.Header.Get("User-Agent") == "" {
