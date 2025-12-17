@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"net/http"
 	"sync"
 	"time"
 
@@ -25,12 +23,6 @@ func main1() {
 	fmt.Println(file.FilesUnder(runner.Cwd))
 }
 
-var transport http.RoundTripper = &http.Transport{
-	MaxIdleConnsPerHost:   100,
-	ResponseHeaderTimeout: time.Second * 10,
-	IdleConnTimeout:       time.Second * 10,
-}
-
 func main() {
 	wg := &sync.WaitGroup{}
 	for i := 0; i < 100; i++ {
@@ -44,17 +36,6 @@ func main() {
 }
 
 func callHTTP() {
-	req := httplib.Get("http://localhost:3456/print").SetTimeout(time.Second * 5)
-	str, err := req.String()
-	if err != nil {
-		fmt.Println("error:", err)
-		return
-	}
-
-	if len(str) == 0 {
-		log.Println("httplib Get failed, response is empty")
-		return
-	}
-
-	fmt.Println("response body:", str)
+	code, bs, err := httplib.Get("http://localhost:3456/print").SetTimeout(time.Second).BytesV2()
+	fmt.Printf("code=%d, response body: %s, error: %v\n", code, string(bs), err)
 }

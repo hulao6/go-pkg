@@ -17,18 +17,18 @@
 //
 // import "github.com/astaxie/beego/httplib"
 //
-//	b := httplib.Post("http://beego.me/")
-//	b.Param("username","astaxie")
-//	b.Param("password","123456")
-//	b.PostFile("uploadfile1", "httplib.pdf")
-//	b.PostFile("uploadfile2", "httplib.txt")
-//	str, err := b.String()
-//	if err != nil {
-//		t.Fatal(err)
-//	}
-//	fmt.Println(str)
+//		b := httplib.Post("http://beego.me/")
+//		b.Param("username","astaxie")
+//		b.Param("password","123456")
+//		b.PostFile("uploadfile1", "httplib.pdf")
+//		b.PostFile("uploadfile2", "httplib.txt")
+//		str, err := b.String()
+//		if err != nil {
+//			t.Fatal(err)
+//		}
+//		fmt.Println(str)
 //
-//  more docs http://beego.me/docs/module/httplib.md
+//	 more docs http://beego.me/docs/module/httplib.md
 package httplib
 
 import (
@@ -55,7 +55,7 @@ import (
 )
 
 var defaultSetting = BeegoHTTPSettings{
-	UserAgent: "beegoServerV2",
+	UserAgent: "beego-server-v3.0",
 	Timeout:   3 * time.Second,
 	Gzip:      true,
 	DumpBody:  true,
@@ -144,7 +144,6 @@ type BeegoHTTPSettings struct {
 	EnableCookie    bool
 	Gzip            bool
 	DumpBody        bool
-	Retries         int // if set to -1 means will retry forever
 }
 
 // BeegoHTTPRequest provides more useful methods for requesting one url than http.Request.
@@ -191,15 +190,6 @@ func (b *BeegoHTTPRequest) SetUserAgent(useragent string) *BeegoHTTPRequest {
 // Debug sets show debug or not when executing request.
 func (b *BeegoHTTPRequest) Debug(isdebug bool) *BeegoHTTPRequest {
 	b.setting.ShowDebug = isdebug
-	return b
-}
-
-// Retries sets Retries times.
-// default is 0 means no retried.
-// -1 means retried forever.
-// others means retried times.
-func (b *BeegoHTTPRequest) Retries(times int) *BeegoHTTPRequest {
-	b.setting.Retries = times
 	return b
 }
 
@@ -271,9 +261,9 @@ func (b *BeegoHTTPRequest) SetTransport(transport http.RoundTripper) *BeegoHTTPR
 // example:
 //
 //	func(req *http.Request) (*url.URL, error) {
-// 		u, _ := url.ParseRequestURI("http://127.0.0.1:8118")
-// 		return u, nil
-// 	}
+//		u, _ := url.ParseRequestURI("http://127.0.0.1:8118")
+//		return u, nil
+//	}
 func (b *BeegoHTTPRequest) SetProxy(proxy func(*http.Request) (*url.URL, error)) *BeegoHTTPRequest {
 	b.setting.Proxy = proxy
 	return b
@@ -525,16 +515,8 @@ func (b *BeegoHTTPRequest) DoRequest() (resp *http.Response, err error) {
 		}
 		b.dump = dump
 	}
-	// retries default value is 0, it will run once.
-	// retries equal to -1, it will run forever until success
-	// retries is setted, it will retries fixed times.
-	for i := 0; b.setting.Retries == -1 || i <= b.setting.Retries; i++ {
-		resp, err = client.Do(b.req)
-		if err == nil {
-			break
-		}
-	}
-	return resp, err
+
+	return client.Do(b.req)
 }
 
 // String returns the body string in response.
@@ -567,11 +549,37 @@ func (b *BeegoHTTPRequest) Bytes() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		b.body, err = ioutil.ReadAll(reader)
+		b.body, err = io.ReadAll(reader)
 		return b.body, err
 	}
-	b.body, err = ioutil.ReadAll(resp.Body)
+	b.body, err = io.ReadAll(resp.Body)
 	return b.body, err
+}
+
+// BytesV2 return the status code and body []byte in response.
+func (b *BeegoHTTPRequest) BytesV2() (int, []byte, error) {
+	resp, err := b.getResponse()
+	if err != nil {
+		return 0, nil, err
+	}
+
+	code := resp.StatusCode
+
+	if resp.Body == nil {
+		return code, nil, nil
+	}
+
+	defer resp.Body.Close()
+	if b.setting.Gzip && resp.Header.Get("Content-Encoding") == "gzip" {
+		reader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			return code, nil, err
+		}
+		b.body, err = io.ReadAll(reader)
+		return code, b.body, err
+	}
+	b.body, err = io.ReadAll(resp.Body)
+	return code, b.body, err
 }
 
 // ToFile saves the body data in response to one file.
